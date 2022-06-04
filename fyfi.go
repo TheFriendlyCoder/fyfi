@@ -11,7 +11,6 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/net/html"
-	"gorm.io/gorm"
 )
 
 type Package struct {
@@ -51,7 +50,6 @@ func NewPackage(anchor *html.Node) (*Package, error) {
 }
 
 type Distro struct {
-	gorm.Model
 	name     string
 	packages []*Package
 }
