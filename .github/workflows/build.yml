@@ -1,0 +1,31 @@
+name: Build
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+
+jobs:
+  Test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: "1.18"
+      - run: go test
+  Release:
+    runs-on: ubuntu-latest
+    needs: Test
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: "1.18"
+      - if: ${{ github.event.ref_type != 'tag' }}
+        run: echo Skipping publishing of release
+      - run: echo "Event is ${{ github.event_name }} and type is ${{ github.ref_type }}"
+      - name: Deploy Release
+        if: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}
+        run: GOPROXY=proxy.golang.org go list -m github.com/${{ github.repository }}@$GITHUB_REF_NAME
