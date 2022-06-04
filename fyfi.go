@@ -2,9 +2,13 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"strings"
 
+	"github.com/julienschmidt/httprouter"
 	"golang.org/x/net/html"
 	"gorm.io/gorm"
 )
@@ -13,8 +17,7 @@ type Package struct {
 	URL           string
 	filename      string
 	pythonVersion string
-	// TODO: parse out checksum from URL and store separately here
-	// checksum string
+	checksum      string
 }
 
 func NewPackage(anchor *html.Node) (*Package, error) {
@@ -33,7 +36,17 @@ func NewPackage(anchor *html.Node) (*Package, error) {
 	if url == "" {
 		return nil, errors.New("failed to parse package URL from pypi response")
 	}
-	return &Package{URL: url, filename: filename, pythonVersion: pyver}, nil
+
+	parts := strings.Split(url, "#")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("failed to parse out checksum: %s", url)
+	}
+	checksum := parts[len(parts)-1]
+	if !strings.HasPrefix(checksum, "sha256=") {
+		return nil, fmt.Errorf("failed to load checksum type for %s", checksum)
+	}
+	checksum = strings.Split(checksum, "=")[1]
+	return &Package{URL: url, filename: filename, pythonVersion: pyver, checksum: checksum}, nil
 }
 
 type Distro struct {
@@ -101,7 +114,39 @@ func NewDistro(htmlData string) (*Distro, error) {
 	return &Distro{name: temp[len(temp)-1], packages: packages}, nil
 }
 
+func simple(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	DistName := ps.ByName("library")
+	log.Printf("Querying for dist %s\n", DistName)
+
+	SrcURL := fmt.Sprintf("https://pypi.org/simple/%s/", DistName)
+
+	resp, err := http.Get(SrcURL)
+	if err != nil {
+		log.Println("Unable to communicate with source repo")
+		return
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println("Unable to communicate with source repo")
+		return
+	}
+
+	distro, err := NewDistro(string(body))
+	if err != nil {
+		log.Printf("Error parsing response data: %v\n", err)
+		return
+	}
+	log.Printf("Loading distro %s\n", distro.name)
+	log.Printf("Found %d packages for distro %s\n", len(distro.packages), distro.name)
+	log.Printf("First package %s has pyver %s\n", distro.packages[0].filename, distro.packages[0].pythonVersion)
+	fmt.Fprint(w, string(body))
+}
+
 func main() {
-	log.Fatal("Error from KSP")
-	log.Println("Shouldn't see me")
+	router := httprouter.New()
+	router.GET("/simple/:library/", simple)
+	router.GET("/simple/:library", simple)
+
+	log.Println("Listing for requests at http://localhost:8000/simple")
+	log.Fatal(http.ListenAndServe(":8000", router))
 }
