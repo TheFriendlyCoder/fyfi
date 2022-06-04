@@ -1,5 +1,6 @@
 package main
 
+// Reference: https://peps.python.org/pep-0503/
 import (
 	"errors"
 	"fmt"
