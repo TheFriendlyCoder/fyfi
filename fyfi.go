@@ -2,6 +2,7 @@ package main
 
 // Reference: https://peps.python.org/pep-0503/
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -9,9 +10,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/TheFriendlyCoder/fyfi/ent"
 	"github.com/julienschmidt/httprouter"
+	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/net/html"
 )
+
+var client *ent.Client
 
 type Package struct {
 	URL           string
@@ -51,7 +56,7 @@ func NewPackage(anchor *html.Node) (*Package, error) {
 
 type Distro struct {
 	name     string
-	packages []*Package
+	packages []*ent.PythonPackage
 }
 
 func NewDistro(htmlData string) (*Distro, error) {
@@ -94,14 +99,13 @@ func NewDistro(htmlData string) (*Distro, error) {
 	}
 
 	anchors := find_all_children(node, "a")
-	packages := make([]*Package, len(anchors))
+	packages := make([]*ent.PythonPackage, len(anchors))
 	for i, a := range anchors {
-		temp, err := NewPackage(a)
+		temp, err := CreatePackage(context.Background(), client, a)
 		if err != nil {
 			return nil, err
 		}
 		packages[i] = temp
-
 	}
 
 	header, err := find_first_child(node, "h1")
@@ -135,17 +139,80 @@ func simple(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		log.Printf("Error parsing response data: %v\n", err)
 		return
 	}
+
 	log.Printf("Loading distro %s\n", distro.name)
 	log.Printf("Found %d packages for distro %s\n", len(distro.packages), distro.name)
-	log.Printf("First package %s has pyver %s\n", distro.packages[0].filename, distro.packages[0].pythonVersion)
+	log.Printf("First package %s has pyver %s\n", distro.packages[0].Filename, distro.packages[0].PythonVersion)
 	fmt.Fprint(w, string(body))
 }
 
+func CreatePackage(ctx context.Context, client *ent.Client, anchor *html.Node) (*ent.PythonPackage, error) {
+	url := ""
+	var pyver string
+	for _, attr := range anchor.Attr {
+		switch {
+
+		case attr.Key == "href":
+			url = attr.Val
+		case attr.Key == "data-requires-python":
+			pyver = html.UnescapeString(attr.Val)
+		}
+	}
+	filename := anchor.FirstChild.Data
+	if url == "" {
+		return nil, errors.New("failed to parse package URL from pypi response")
+	}
+
+	parts := strings.Split(url, "#")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("failed to parse out checksum: %s", url)
+	}
+	checksum := parts[len(parts)-1]
+	if !strings.HasPrefix(checksum, "sha256=") {
+		return nil, fmt.Errorf("failed to load checksum type for %s", checksum)
+	}
+	checksum = strings.Split(checksum, "=")[1]
+
+	retval, err := client.PythonPackage.
+		Create().
+		SetURL(url).
+		SetChecksum(checksum).
+		SetFilename(filename).
+		SetPythonVersion(pyver).
+		Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating entity: %w", err)
+	}
+	//log.Println("entity was created: ", retval)
+	return retval, nil
+}
+
+func setupDB(memory bool) *ent.Client {
+	var connection_string string
+	if memory {
+		connection_string = "file:ent?mode=memory&cache=shared&_fk=1"
+	} else {
+		connection_string = "file:metadata.db?cache=shared&_fk=1"
+	}
+	retval, err := ent.Open("sqlite3", connection_string)
+	if err != nil {
+		log.Fatalf("failed opening connection to sqlite: %v", err)
+	}
+	// Run the auto migration tool.
+	if err := retval.Schema.Create(context.Background()); err != nil {
+		log.Fatalf("failed creating schema resources: %v", err)
+	}
+	return retval
+}
 func main() {
+	client = setupDB(false)
+	defer client.Close()
 	router := httprouter.New()
 	router.GET("/simple/:library/", simple)
 	router.GET("/simple/:library", simple)
 
 	log.Println("Listing for requests at http://localhost:8000/simple")
 	log.Fatal(http.ListenAndServe(":8000", router))
+
+	log.Println("Done")
 }

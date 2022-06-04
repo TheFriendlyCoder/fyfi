@@ -6,6 +6,9 @@ import (
 )
 
 func TestBasicParsing(t *testing.T) {
+	client = setupDB(true)
+	defer client.Close()
+
 	dat, err := os.ReadFile("testdata/distro_sample.html")
 	if err != nil {
 		t.Fatalf("Error loading sample data: %v", err)
@@ -34,14 +37,14 @@ func TestBasicParsing(t *testing.T) {
 	if pck.URL != expected_package_url {
 		t.Errorf("Package url incorrect %s != %s", pck.URL, expected_package_url)
 	}
-	if pck.filename != expected_package_name {
-		t.Errorf("Package filename incorrect %s != %s", pck.filename, expected_package_name)
+	if pck.Filename != expected_package_name {
+		t.Errorf("Package filename incorrect %s != %s", pck.Filename, expected_package_name)
 	}
-	if pck.pythonVersion != expected_py_ver {
-		t.Errorf("Package Python version incorrect %s != %s", pck.pythonVersion, expected_py_ver)
+	if pck.PythonVersion != expected_py_ver {
+		t.Errorf("Package Python version incorrect %s != %s", pck.PythonVersion, expected_py_ver)
 	}
-	if pck.checksum != expected_package_checksum {
-		t.Errorf("Package checksum incorrect %s != %s", pck.checksum, expected_package_checksum)
+	if pck.Checksum != expected_package_checksum {
+		t.Errorf("Package checksum incorrect %s != %s", pck.Checksum, expected_package_checksum)
 	}
 
 	// <a href="https://files.pythonhosted.org/packages/4b/b6/0fa7aa968a9fa4ef63a51b3ff0644e59f49dcd7235b3fd6cceb23f202e08/pip-22.1.2.tar.gz#sha256=6d55b27e10f506312894a87ccc59f280136bad9061719fac9101bdad5a6bce69" data-requires-python="&gt;=3.7">pip-22.1.2.tar.gz</a><br/>
@@ -53,13 +56,13 @@ func TestBasicParsing(t *testing.T) {
 	if pck.URL != expected_package_url {
 		t.Errorf("Package url incorrect %s != %s", pck.URL, expected_package_url)
 	}
-	if pck.filename != expected_package_name {
-		t.Errorf("Package filename incorrect %s != %s", pck.filename, expected_package_name)
+	if pck.Filename != expected_package_name {
+		t.Errorf("Package filename incorrect %s != %s", pck.Filename, expected_package_name)
 	}
-	if pck.pythonVersion != expected_py_ver {
-		t.Errorf("Package Python version incorrect %s != %s", pck.pythonVersion, expected_py_ver)
+	if pck.PythonVersion != expected_py_ver {
+		t.Errorf("Package Python version incorrect %s != %s", pck.PythonVersion, expected_py_ver)
 	}
-	if pck.checksum != expected_package_checksum {
-		t.Errorf("Package checksum incorrect %s != %s", pck.checksum, expected_package_checksum)
+	if pck.Checksum != expected_package_checksum {
+		t.Errorf("Package checksum incorrect %s != %s", pck.Checksum, expected_package_checksum)
 	}
 }
