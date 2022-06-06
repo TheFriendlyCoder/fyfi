@@ -2,6 +2,7 @@ package schema
 
 import (
 	"entgo.io/ent"
+	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 )
 
@@ -12,10 +13,6 @@ type PythonPackage struct {
 
 // Fields of the PythonPackage.
 func (PythonPackage) Fields() []ent.Field {
-	// URL           string
-	// filename      string
-	// pythonVersion string
-	// checksum      string
 	return []ent.Field{
 		field.String("url").NotEmpty(),
 		field.String("filename"),
@@ -26,5 +23,9 @@ func (PythonPackage) Fields() []ent.Field {
 
 // Edges of the PythonPackage.
 func (PythonPackage) Edges() []ent.Edge {
-	return nil
+	return []ent.Edge{
+		edge.From("distro", PythonDistro.Type).
+			Ref("packages").
+			Unique(),
+	}
 }
