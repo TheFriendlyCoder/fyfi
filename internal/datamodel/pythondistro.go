@@ -2,59 +2,19 @@ package datamodel
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/TheFriendlyCoder/fyfi/ent"
-	"golang.org/x/net/html"
+	"github.com/TheFriendlyCoder/fyfi/internal/pypi"
 )
 
 func CreateDistro(ctx context.Context, client *ent.Client, htmlData string) (*ent.PythonDistro, error) {
-	node, err := html.Parse(strings.NewReader(htmlData))
+	heading, anchors, err := pypi.ParseDistribution(htmlData)
 	if err != nil {
 		return nil, err
 	}
-
-	var find_first_child = func(node *html.Node, name string) (*html.Node, error) {
-		for n := node.FirstChild; n != nil; n = n.NextSibling {
-			if n.Type != html.ElementNode {
-				continue
-			}
-			if n.Data == name {
-				return n, nil
-			}
-		}
-		return nil, errors.New("unable to find node")
-	}
-
-	var find_all_children = func(node *html.Node, name string) []*html.Node {
-		retval := make([]*html.Node, 0)
-		for n := node.FirstChild; n != nil; n = n.NextSibling {
-			if n.Type != html.ElementNode {
-				continue
-			}
-			if n.Data == name {
-				retval = append(retval, n)
-			}
-		}
-		return retval
-	}
-	node, err = find_first_child(node, "html")
-	if err != nil {
-		return nil, err
-	}
-	node, err = find_first_child(node, "body")
-	if err != nil {
-		return nil, err
-	}
-
-	header, err := find_first_child(node, "h1")
-	if err != nil {
-		return nil, err
-	}
-	temp := strings.Split(header.FirstChild.Data, " ")
-
+	temp := strings.Split(heading.FirstChild.Data, " ")
 	//return &Distro{name: temp[len(temp)-1], packages: packages}, nil
 
 	pd := client.PythonDistro.
@@ -62,7 +22,6 @@ func CreateDistro(ctx context.Context, client *ent.Client, htmlData string) (*en
 		SetName(temp[len(temp)-1])
 	retval, err := pd.Save(ctx)
 
-	anchors := find_all_children(node, "a")
 	packages := make([]*ent.PythonPackage, len(anchors))
 	for i, a := range anchors {
 		temp, err := CreatePackage(context.Background(), client, a, retval)
