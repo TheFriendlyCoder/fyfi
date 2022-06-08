@@ -26,6 +26,7 @@ func (PythonPackage) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.From("distro", PythonDistro.Type).
 			Ref("packages").
-			Unique(),
+			Unique().
+			Required(),
 	}
 }

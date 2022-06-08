@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"testing"
+
+	"github.com/TheFriendlyCoder/fyfi/internal/datamodel"
 )
 
 func TestBasicParsing(t *testing.T) {
@@ -15,11 +17,12 @@ func TestBasicParsing(t *testing.T) {
 		t.Fatalf("Error loading sample data: %v", err)
 	}
 
-	distro, err := CreateDistro(context.Background(), client, string(dat))
+	distro, err := datamodel.CreateDistro(context.Background(), client, string(dat))
 	if err != nil {
 		t.Fatalf("Parsing should not have failed: %v", err)
 	}
 
+	//temp = client.PythonDistro.Query().Where(ent.PythonDistro.Name(distro.Name))
 	expected_name := "pip"
 	if distro.Name != expected_name {
 		t.Errorf("Distro name incorrect %s != %s", distro.Name, expected_name)
