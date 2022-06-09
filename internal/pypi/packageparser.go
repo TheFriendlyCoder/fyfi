@@ -55,6 +55,9 @@ func findAllChildren(node *html.Node, name string) []*html.Node {
 	return retval
 }
 
+// createPackage populates an instance of the PythonPackage
+// struct from data loaded from an HTML anchor tag which
+// conforms to the pypi conventions
 func createPackage(anchor *html.Node) (*PythonPackage, error) {
 	url := ""
 	var pyver string
@@ -84,6 +87,9 @@ func createPackage(anchor *html.Node) (*PythonPackage, error) {
 	return &PythonPackage{URL: url, Filename: filename, PythonVersion: pyver, Checksum: checksum}, nil
 }
 
+// createDistro constructs an instance of the PythonDistribution
+// struct with data loaded from an HTML DOM compatible with
+// the pypi specification
 func createDistro(node *html.Node) (*PythonDistribution, error) {
 	node = findFirstChild(node, "html")
 	if node == nil {
@@ -118,10 +124,8 @@ func createDistro(node *html.Node) (*PythonDistribution, error) {
 
 // ParseDistribution parses Python distribution and package information from
 // HTML content retrieved from pypi.org or a cmpatible mirror that implements
-// the PEP-503 standard: https://peps.python.org/pep-0503/. Returns the heading
-// node containing descriptive information about the distribution, and a list
-// of 0 or more anchor nodes containing information about individual package
-// releases of the distribution
+// the PEP-503 standard: https://peps.python.org/pep-0503/. Returns structured
+// data describing the distribution and associated packages
 func ParseDistribution(htmlData string) (*PythonDistribution, error) {
 	node, err := html.Parse(strings.NewReader(htmlData))
 	if err != nil {

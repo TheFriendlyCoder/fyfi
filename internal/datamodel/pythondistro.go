@@ -8,6 +8,8 @@ import (
 	"github.com/TheFriendlyCoder/fyfi/internal/pypi"
 )
 
+// SaveDistro serializes the data from a PythonDistribution struct so
+// it can be stored in a metadata database
 func SaveDistro(ctx context.Context, client *ent.Client, distro *pypi.PythonDistribution) error {
 
 	for _, p := range distro.Packages {
