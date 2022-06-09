@@ -4,12 +4,24 @@ package pypi
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"golang.org/x/net/html"
 )
 
-// TODO: add unit tests for parsing code
+type PythonPackage struct {
+	URL           string
+	Filename      string
+	PythonVersion string
+	Checksum      string
+}
+
+type PythonDistribution struct {
+	Name     string
+	Packages []PythonPackage
+}
+
 // findFirstChild locates the first matching child HTML node under a parent
 // node with the specified tag name. Returns nil if no matching child node
 // can be found.
@@ -43,15 +55,65 @@ func findAllChildren(node *html.Node, name string) []*html.Node {
 	return retval
 }
 
-// getAttributes converts the HTML attributes associated with a specific
-// node / tag into a hash map format to simplify access
-func getAttributes(node *html.Node) map[string]string {
-	retval := map[string]string{}
+func createPackage(anchor *html.Node) (*PythonPackage, error) {
+	url := ""
+	var pyver string
+	for _, attr := range anchor.Attr {
+		switch {
 
-	for _, attr := range node.Attr {
-		retval[attr.Key] = attr.Val
+		case attr.Key == "href":
+			url = attr.Val
+		case attr.Key == "data-requires-python":
+			pyver = html.UnescapeString(attr.Val)
+		}
 	}
-	return retval
+	filename := anchor.FirstChild.Data
+	if url == "" {
+		return nil, errors.New("failed to parse package URL from pypi response")
+	}
+
+	parts := strings.Split(url, "#")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("failed to parse out checksum: %s", url)
+	}
+	checksum := parts[len(parts)-1]
+	if !strings.HasPrefix(checksum, "sha256=") {
+		return nil, fmt.Errorf("failed to load checksum type for %s", checksum)
+	}
+
+	return &PythonPackage{URL: url, Filename: filename, PythonVersion: pyver, Checksum: checksum}, nil
+}
+
+func createDistro(node *html.Node) (*PythonDistribution, error) {
+	node = findFirstChild(node, "html")
+	if node == nil {
+		return nil, errors.New("unable to parse HTML content")
+	}
+	node = findFirstChild(node, "body")
+	if node == nil {
+		return nil, errors.New("unable to parse BODY content")
+	}
+
+	heading := findFirstChild(node, "h1")
+	if heading == nil {
+		return nil, errors.New("unable to parse H1 heading content")
+	}
+
+	parts := strings.Split(heading.FirstChild.Data, " ")
+	name := parts[len(parts)-1]
+
+	anchors := findAllChildren(node, "a")
+
+	packages := make([]PythonPackage, len(anchors))
+	for i, a := range anchors {
+		temp, err := createPackage(a)
+		if err != nil {
+			return nil, err
+		}
+		packages[i] = *temp
+	}
+
+	return &PythonDistribution{Name: name, Packages: packages}, nil
 }
 
 // ParseDistribution parses Python distribution and package information from
@@ -60,26 +122,10 @@ func getAttributes(node *html.Node) map[string]string {
 // node containing descriptive information about the distribution, and a list
 // of 0 or more anchor nodes containing information about individual package
 // releases of the distribution
-func ParseDistribution(htmlData string) (*html.Node, []*html.Node, error) {
+func ParseDistribution(htmlData string) (*PythonDistribution, error) {
 	node, err := html.Parse(strings.NewReader(htmlData))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
-	node = findFirstChild(node, "html")
-	if node == nil {
-		return nil, nil, errors.New("unable to parse HTML content")
-	}
-	node = findFirstChild(node, "body")
-	if node == nil {
-		return nil, nil, errors.New("unable to parse BODY content")
-	}
-
-	heading := findFirstChild(node, "h1")
-	if heading == nil {
-		return nil, nil, errors.New("unable to parse H1 heading content")
-	}
-	anchors := findAllChildren(node, "a")
-
-	return heading, anchors, nil
+	return createDistro(node)
 }

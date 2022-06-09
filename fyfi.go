@@ -7,9 +7,11 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/TheFriendlyCoder/fyfi/ent"
 	"github.com/TheFriendlyCoder/fyfi/internal/datamodel"
+	"github.com/TheFriendlyCoder/fyfi/internal/pypi"
 	"github.com/julienschmidt/httprouter"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -33,13 +35,18 @@ func simple(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		return
 	}
 
-	distro, err := datamodel.CreateDistro(context.Background(), client, string(body))
+	temp, err := pypi.ParseDistribution(string(body))
+	if err != nil {
+		log.Println("Failed to parse distro data")
+		return
+	}
+	err = datamodel.SaveDistro(context.Background(), client, temp)
 	if err != nil {
 		log.Printf("Error parsing response data: %v\n", err)
 		return
 	}
 
-	log.Printf("Loading distro %s\n", distro.Name)
+	log.Printf("Loading distro %s\n", temp.Name)
 	// log.Printf("Found %d packages for distro %s\n", len(distro.Edges.Packages), distro.Name)
 	// log.Printf("First package %s has pyver %s\n", distro.Edges.Packages[0].Filename, distro.Edges.Packages[0].PythonVersion)
 	fmt.Fprint(w, string(body))
@@ -50,6 +57,7 @@ func setupDB(memory bool) *ent.Client {
 	if memory {
 		connection_string = "file:ent?mode=memory&cache=shared&_fk=1"
 	} else {
+		os.Remove("metadata.db")
 		connection_string = "file:metadata.db?cache=shared&_fk=1"
 	}
 	retval, err := ent.Open("sqlite3", connection_string)
