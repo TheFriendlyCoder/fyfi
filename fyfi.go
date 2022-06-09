@@ -10,11 +10,14 @@ import (
 	"os"
 
 	"github.com/TheFriendlyCoder/fyfi/ent"
+	"github.com/TheFriendlyCoder/fyfi/internal/configuration"
 	"github.com/TheFriendlyCoder/fyfi/internal/datamodel"
 	"github.com/TheFriendlyCoder/fyfi/internal/pypi"
 	"github.com/julienschmidt/httprouter"
 	_ "github.com/mattn/go-sqlite3"
 )
+
+const configFilePath string = "sample.yml"
 
 var client *ent.Client
 
@@ -70,7 +73,30 @@ func setupDB(memory bool) *ent.Client {
 	}
 	return retval
 }
+
+func configure() (*configuration.ConfigData, error) {
+
+	config, err := configuration.NewConfigData(configFilePath)
+	if err != nil {
+		return nil, err
+	}
+	err = os.MkdirAll(config.CacheFolder, 0700)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
 func main() {
+	config, err := configure()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(config.CacheFolder)
+
+	// TODO: add tests for config file
+	// TODO: add doc strings for config file
+	// TODO: pass config and database reference to callback
 	client = setupDB(false)
 	defer client.Close()
 	router := httprouter.New()
