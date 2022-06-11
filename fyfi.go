@@ -19,9 +19,23 @@ import (
 
 const configFilePath string = "sample.yml"
 
-var client *ent.Client
+type AppSettings struct {
+	Client *ent.Client
+	Config *configuration.ConfigData
+}
 
-func simple(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func simple(w http.ResponseWriter, r *http.Request) {
+	settings, ok := r.Context().Value("settings").(AppSettings)
+
+	if !ok {
+		fmt.Println("Settings not correct type")
+	}
+
+	ps, ok := r.Context().Value("params").(httprouter.Params)
+	if !ok {
+		fmt.Println("Params not correct type")
+	}
+
 	DistName := ps.ByName("library")
 	log.Printf("Querying for dist %s\n", DistName)
 
@@ -43,7 +57,7 @@ func simple(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		log.Println("Failed to parse distro data")
 		return
 	}
-	err = datamodel.SaveDistro(context.Background(), client, temp)
+	err = datamodel.SaveDistro(context.Background(), settings.Client, temp)
 	if err != nil {
 		log.Printf("Error parsing response data: %v\n", err)
 		return
@@ -55,6 +69,35 @@ func simple(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	fmt.Fprint(w, string(body))
 }
 
+func wrapHandler(h http.Handler) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		// Take the context out from the request
+		ctx := r.Context()
+		ctx = context.WithValue(ctx, "params", ps)
+		r = r.WithContext(ctx)
+		h.ServeHTTP(w, r)
+	}
+}
+
+func settingsMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		config, err := configure()
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(config.CacheFolder)
+
+		var settings AppSettings
+		settings.Client = setupDB(false)
+		settings.Config = config
+		defer settings.Client.Close()
+
+		ctx := r.Context()
+		ctx = context.WithValue(ctx, "settings", settings)
+		r = r.WithContext(ctx)
+		h.ServeHTTP(w, r)
+	})
+}
 func setupDB(memory bool) *ent.Client {
 	var connection_string string
 	if memory {
@@ -88,18 +131,10 @@ func configure() (*configuration.ConfigData, error) {
 }
 
 func main() {
-	config, err := configure()
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(config.CacheFolder)
-
-	// TODO: pass config and database reference to callback
-	client = setupDB(false)
-	defer client.Close()
 	router := httprouter.New()
-	router.GET("/simple/:library/", simple)
-	router.GET("/simple/:library", simple)
+	simpleReceiver := settingsMiddleware(http.HandlerFunc(simple))
+	router.GET("/simple/:library/", wrapHandler(simpleReceiver))
+	router.GET("/simple/:library", wrapHandler(simpleReceiver))
 
 	log.Println("Listing for requests at http://localhost:8000/simple")
 	log.Fatal(http.ListenAndServe(":8000", router))
