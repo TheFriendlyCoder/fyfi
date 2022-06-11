@@ -94,8 +94,6 @@ func main() {
 	}
 	fmt.Println(config.CacheFolder)
 
-	// TODO: add tests for config file
-	// TODO: add doc strings for config file
 	// TODO: pass config and database reference to callback
 	client = setupDB(false)
 	defer client.Close()

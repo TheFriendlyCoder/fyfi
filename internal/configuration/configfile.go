@@ -8,9 +8,18 @@ import (
 )
 
 type ConfigData struct {
+	// Path to the folder where cached packages will be stored
+	// This will also be the location of the metadata database
+	// containing reference information about the cached data
 	CacheFolder string
 }
 
+// NewConfigData constructs an instance of the ConfigData
+// struct, populating the contents from data loaded from
+// a yaml-formatted configuration file. The file format is
+// expected to look as follows:
+//
+//		cache_folder: <absolute_path_to_cache_folder>
 func NewConfigData(configFile string) (*ConfigData, error) {
 	yfile, err := ioutil.ReadFile(configFile)
 	if err != nil {
@@ -32,17 +41,5 @@ func NewConfigData(configFile string) (*ConfigData, error) {
 		return nil, fmt.Errorf("failed to parse %s from config file", key)
 	}
 
-	key = "port"
-	var port int
-	var temp interface{}
-	temp, ok = data[key]
-	if !ok {
-		return nil, fmt.Errorf("unable to find key %s", key)
-	}
-	port, ok = temp.(int)
-	fmt.Println(port)
-	if !ok {
-		return nil, fmt.Errorf("failed to parse %s from config file - incorrect data type %T", key, key)
-	}
 	return c, nil
 }
